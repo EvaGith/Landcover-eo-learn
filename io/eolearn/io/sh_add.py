@@ -7,7 +7,7 @@ import logging
 from rasterio import transform, warp
 
 from sentinelhub import WmsRequest, WcsRequest, MimeType, DataSource, CustomUrlParam, CRS, GeopediaWmsRequest,\
-    ServiceType, transform_bbox
+    ServiceType, transform_bbox, GeopediaFeatureIterator
 
 from eolearn.core import EOTask, FeatureType, get_common_timestamps
 
@@ -387,5 +387,22 @@ class AddGeopediaRasterFeature(EOTask):
             raster = raster[..., np.newaxis]
 
         eopatch.add_feature(self.feature_type, self.feature_name, raster)
+
+        return eopatch
+
+
+class AddGeopediaVectorFeature(EOTask):
+
+    def __init__(self, feature_type, feature_name, layer):
+        self.feature_type = FeatureType(feature_type)
+        self.feature_name = feature_name
+        self.layer = layer
+
+    def execute(self, eopatch):
+        bbox_3857 = transform_bbox(eopatch.bbox, CRS.POP_WEB)
+        gpd_iter = GeopediaFeatureIterator(layer=self.layer, bbox=bbox_3857)
+        vectors = list(gpd_iter.get_geometry_iterator())
+
+        eopatch.add_feature(self.feature_type, self.feature_name, vectors)
 
         return eopatch
