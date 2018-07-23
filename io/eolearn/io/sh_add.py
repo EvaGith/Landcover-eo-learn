@@ -245,7 +245,7 @@ class AddL8Feature(AddSentinelHubOGCFeature):
                                            data_source=DataSource.LANDSAT8, **kwargs)
 
 
-class AddGeopediaFeature(EOTask):
+class AddGeopediaRasterFeature(EOTask):
     """
     Task for adding a feature from Geopedia to an existing EOPatch.
 
