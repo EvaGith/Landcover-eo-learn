@@ -105,3 +105,11 @@ ENV/
 
 # IDE config
 .idea/
+
+# Files that Sphinx generates
+/docs/source/examples
+/docs/source/eotasks.rst
+
+# pytest
+.pytest_cache/
+features/.pytest_cache

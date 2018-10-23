@@ -453,39 +453,34 @@ class ImageClassificationMaskTask(EOTask):
     This task applies pixel-based uni-temporal classifier to each image in the patch
     and appends to each image the classification mask.
     """
-    def __init__(self, classifier, out_feature_type, out_feature_name, in_feature_type, in_feature_name):
+    def __init__(self, input_feature, output_feature, classifier):
+        """ Run a classification task on a EOPatch feature
+
+            Classifier is an instance of the ImageBaseClassifier that maps [w, h, d] numpy arrays (d-channel images)
+            into [w, h, 1] numpy arrays (classification masks).
+
+            :param input_feature: Feature which will be classified
+            :type input_feature: (FeatureType, str)
+            :param output_feature: Feature where classification results will be saved
+            :type output_feature: (FeatureType, str)
+            :param classifier: A classifier that works over [n, w, h, d]-dimensional numpy arrays.
+            :type classifier: ImageBaseClassifier
         """
-        Classifier is an instance of the ImageBaseClassifier that maps [w, h, d] numpy arrays (d-channel images) into
-        [w, h, 1] numpy arrays (classification masks).
-        :param classifier: A classifier that works over [n, w, h, d]-dimensional numpy arrays.
-        :type classifier: ImageBaseClassifier
-        :param out_feature_type: type for the output classification mask feature
-        :type out_feature_type: eolearn.core.FeatureType
-        :param out_feature_name: Name of the output classification mask feature
-        :type out_feature_name: str
-        :param in_feature_type: feature type for the input data accepted by the classifier
-        :type in_feature_type: eolearn.core.FeatureType
-        :param in_feature_name: Name of the input data accepted by the classifier
-        :type in_feature_name: str
-        """
+        self.input_feature = self._parse_features(input_feature)
+        self.output_feature = self._parse_features(output_feature)
         self.classifier = classifier
-        self.out_feature_type = out_feature_type
-        self.out_feature_name = out_feature_name
-        self.in_feature_type = in_feature_type
-        self.in_feature_name = in_feature_name
 
     def execute(self, eopatch):
-        """
-        Transforms [n, w, h, d] eopatch into a [n, w, h, d+1] eopatch, adding it the classification mask.
-        :param eopatch: An input EOPatch
-        :type eopatch: EOPatch
-        :return: Outputs EOPatch with n classification masks appended to out_feature_type with out_feature_name key
-        :rtype: EOPatch
-        """
-        array = eopatch.get_feature(self.in_feature_type, self.in_feature_name)
+        """ Transforms [n, w, h, d] eopatch into a [n, w, h, 1] eopatch, adding it the classification mask.
 
-        clf_mask = self.classifier.image_predict(array)
+            :param eopatch: An input EOPatch
+            :type eopatch: EOPatch
+            :return: Outputs EOPatch with n classification masks appended to out_feature_type with out_feature_name key
+            :rtype: EOPatch
+        """
+        in_type, in_name = next(self.input_feature(eopatch))
+        out_type, out_name = next(self.input_feature())
 
-        eopatch.add_feature(self.out_feature_type, self.out_feature_name, clf_mask)
+        eopatch[out_type][out_name] = self.classifier.image_predict(eopatch[in_type][in_name])
 
         return eopatch

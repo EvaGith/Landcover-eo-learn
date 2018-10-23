@@ -1,12 +1,19 @@
+"""
+Module for adding data obtained from sentinelhub package to existing EOPatches
+"""
+
 import numpy as np
+import logging
 from rasterio import transform, warp
 
-from sentinelhub import MimeType, CustomUrlParam, CRS, transform_bbox, \
-    GeopediaWmsRequest, GeopediaFeatureIterator
+from sentinelhub import MimeType, CustomUrlParam, CRS, transform_bbox, GeopediaWmsRequest, GeopediaFeatureIterator
 
 from eolearn.core import EOTask, FeatureType
 
-class AddGeopediaRasterFeature(EOTask):
+LOGGER = logging.getLogger(__name__)
+
+
+class AddGeopediaFeature(EOTask):
     """
     Task for adding a feature from Geopedia to an existing EOPatch.
 
@@ -18,13 +25,10 @@ class AddGeopediaRasterFeature(EOTask):
     * project vectorised raster back to EOPatch's CRS
     * rasterize back and add raster to EOPatch
     """
-
-    def __init__(self, feature_type, feature_name, layer, theme,
-                 raster_value, raster_dtype=np.uint8, no_data_val=0,
+    def __init__(self, feature, layer, theme, raster_value, raster_dtype=np.uint8, no_data_val=0,
                  image_format=MimeType.PNG, mean_abs_difference=2):
 
-        self.feature_type = feature_type
-        self.feature_name = feature_name
+        self.feature_type, self.feature_name = next(self._parse_features(feature)())
 
         self.raster_value = raster_value
         self.raster_dtype = raster_dtype
@@ -89,8 +93,8 @@ class AddGeopediaRasterFeature(EOTask):
         """
         Each request represents a binary class which will be mapped to the scalar `raster_value`
         """
-        if eopatch.feature_exists(self.feature_type, self.feature_name):
-            raster = eopatch.get_feature(self.feature_type, self.feature_name).squeeze()
+        if self.feature_name in eopatch[self.feature_type]:
+            raster = eopatch[self.feature_type][self.feature_name].squeeze()
         else:
             raster = np.ones(dst_shape, dtype=self.raster_dtype) * self.no_data_val
 
@@ -130,7 +134,8 @@ class AddGeopediaRasterFeature(EOTask):
         """
         Add requested feature to this existing EOPatch.
         """
-        data_arr = eopatch.get_feature(FeatureType.MASK, 'IS_DATA')
+
+        data_arr = eopatch[FeatureType.MASK]['IS_DATA']
         _, height, width, _ = data_arr.shape
 
         request = self._get_wms_request(eopatch.bbox, width, height)
@@ -144,19 +149,18 @@ class AddGeopediaRasterFeature(EOTask):
         else:
             raise ValueError("Unsupported raster value type")
 
-        if (self.feature_type in [FeatureType.MASK_TIMELESS]) and raster.ndim == 2:
+        if self.feature_type is FeatureType.MASK_TIMELESS and raster.ndim == 2:
             raster = raster[..., np.newaxis]
 
-        eopatch.add_feature(self.feature_type, self.feature_name, raster)
+        eopatch[self.feature_type][self.feature_name] = raster
 
         return eopatch
 
 
 class AddGeopediaVectorFeature(EOTask):
 
-    def __init__(self, feature_type, feature_name, layer):
-        self.feature_type = FeatureType(feature_type)
-        self.feature_name = feature_name
+    def __init__(self, feature, layer):
+        self.feature_type, self.feature_name = next(self._parse_features(feature)())
         self.layer = layer
 
     def execute(self, eopatch):
@@ -164,6 +168,6 @@ class AddGeopediaVectorFeature(EOTask):
         gpd_iter = GeopediaFeatureIterator(layer=self.layer, bbox=bbox_3857)
         vectors = list(gpd_iter.get_geometry_iterator())
 
-        eopatch.add_feature(self.feature_type, self.feature_name, vectors)
+        eopatch[self.feature_type][self.feature_name] = vectors
 
         return eopatch
